@@ -66,7 +66,8 @@ pub enum FeatureFlag {
     OBJECT_CODE_DEPLOYMENT = 52,
     MAX_OBJECT_NESTING_CHECK = 53,
     KEYLESS_ACCOUNTS_WITH_PASSKEYS = 54,
-    TRANSACTION_CONTEXT_EXTENSION = 55,
+    MULTISIG_V2_ENHANCEMENT = 55,
+    TRANSACTION_CONTEXT_EXTENSION = 56,
 }
 
 impl FeatureFlag {
@@ -119,6 +120,7 @@ impl FeatureFlag {
             FeatureFlag::OBJECT_CODE_DEPLOYMENT,
             FeatureFlag::MAX_OBJECT_NESTING_CHECK,
             FeatureFlag::KEYLESS_ACCOUNTS_WITH_PASSKEYS,
+            FeatureFlag::MULTISIG_V2_ENHANCEMENT,
             FeatureFlag::TRANSACTION_CONTEXT_EXTENSION,
         ]
     }

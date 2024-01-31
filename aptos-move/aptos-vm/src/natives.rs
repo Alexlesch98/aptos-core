@@ -227,7 +227,8 @@ fn unit_test_extensions_hook(exts: &mut NativeContextExtensions) {
 
     exts.add(NativeTableContext::new([0u8; 32], &*DUMMY_RESOLVER));
     exts.add(NativeCodeContext::default());
-    let mut txn_context = NativeTransactionContext::new(vec![1], vec![1], ChainId::test().id());
+    let mut txn_context =
+        NativeTransactionContext::new(vec![1], vec![1], ChainId::test().id(), None);
     txn_context.set_is_friend_or_private_entry_func();
     exts.add(txn_context); // We use the testing environment chain ID here
     exts.add(NativeAggregatorContext::new(

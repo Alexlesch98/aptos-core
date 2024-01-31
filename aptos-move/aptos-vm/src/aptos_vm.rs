@@ -12,7 +12,7 @@ use crate::{
     move_vm_ext::{
         get_max_binary_format_version, get_max_identifier_size,
         session::respawned_session::RespawnedSession, AptosMoveResolver, MoveVmExt, SessionExt,
-        SessionId,
+        SessionId, UserTransactionContext,
     },
     sharded_block_executor::{executor_client::ExecutorClient, ShardedBlockExecutor},
     system_module_names::*,
@@ -260,8 +260,10 @@ impl AptosVM {
         &self,
         resolver: &'r S,
         session_id: SessionId,
+        user_transaction_context_opt: Option<UserTransactionContext>,
     ) -> SessionExt<'r, '_> {
-        self.move_vm.new_session(resolver, session_id)
+        self.move_vm
+            .new_session(resolver, session_id, user_transaction_context_opt)
     }
 
     #[inline(always)]
@@ -521,8 +523,11 @@ impl AptosVM {
             is_account_init_for_sponsored_transaction(txn_data, self.features(), resolver)?;
 
         if is_account_init_for_sponsored_transaction {
-            let mut session = self.new_session(resolver, SessionId::run_on_abort(txn_data));
-            // Abort information is injected using the user defined error in the Move contract.
+            let mut session = self.new_session(
+                resolver,
+                SessionId::run_on_abort(txn_data),
+                Some(txn_data.as_user_transaction_context()),
+            );
             let status = self.inject_abort_info_if_available(status);
 
             create_account_if_does_not_exist(&mut session, gas_meter, txn_data.sender())
@@ -591,6 +596,7 @@ impl AptosVM {
                 resolver,
                 change_set,
                 ZERO_STORAGE_REFUND.into(),
+                Some(txn_data.as_user_transaction_context()),
             )?;
             respawned_session.execute(|session| {
                 transaction_validation::run_failure_epilogue(
@@ -606,7 +612,11 @@ impl AptosVM {
                 .finish(change_set_configs)
                 .map(|set| (set, fee_statement, status))
         } else {
-            let mut session = self.new_session(resolver, SessionId::epilogue_meta(txn_data));
+            let mut session = self.new_session(
+                resolver,
+                SessionId::epilogue_meta(txn_data),
+                Some(txn_data.as_user_transaction_context()),
+            );
             let status = self.inject_abort_info_if_available(status);
 
             let fee_statement =
@@ -877,7 +887,14 @@ impl AptosVM {
 
         // TODO[agg_v1](fix): Charge for aggregator writes
         let session_id = SessionId::epilogue_meta(txn_data);
-        RespawnedSession::spawn(self, session_id, resolver, change_set, storage_refund)
+        RespawnedSession::spawn(
+            self,
+            session_id,
+            resolver,
+            change_set,
+            storage_refund,
+            Some(txn_data.as_user_transaction_context()),
+        )
     }
 
     fn simulate_multisig_transaction<'a>(
@@ -1187,6 +1204,7 @@ impl AptosVM {
             resolver,
             VMChangeSet::empty(),
             0.into(),
+            Some(txn_data.as_user_transaction_context()),
         )?;
 
         let execution_error = ExecutionError::try_from(execution_error)
@@ -1556,7 +1574,11 @@ impl AptosVM {
             // By releasing resource group cache, we start with a fresh slate for resource group
             // cost accounting.
             resolver.release_resource_group_cache();
-            self.new_session(resolver, SessionId::txn_meta(txn_data))
+            self.new_session(
+                resolver,
+                SessionId::txn_meta(txn_data),
+                Some(txn_data.as_user_transaction_context()),
+            )
         } else {
             prolog_session
         }
@@ -1572,7 +1594,11 @@ impl AptosVM {
     ) -> (VMStatus, VMOutput) {
         // Revalidate the transaction.
         let txn_data = TransactionMetadata::new(txn);
-        let mut prolog_session = self.new_session(resolver, SessionId::prologue_meta(&txn_data));
+        let mut prolog_session = self.new_session(
+            resolver,
+            SessionId::prologue_meta(&txn_data),
+            Some(txn_data.as_user_transaction_context()),
+        );
         unwrap_or_discard!(self.validate_signed_transaction(
             &mut prolog_session,
             resolver,
@@ -1746,7 +1772,7 @@ impl AptosVM {
                 Ok(change)
             },
             WriteSetPayload::Script { script, execute_as } => {
-                let mut tmp_session = self.new_session(resolver, session_id);
+                let mut tmp_session = self.new_session(resolver, session_id, None);
                 let senders = match txn_sender {
                     None => vec![*execute_as],
                     Some(sender) => vec![sender, *execute_as],
@@ -1870,7 +1896,7 @@ impl AptosVM {
         });
 
         let mut gas_meter = UnmeteredGasMeter;
-        let mut session = self.new_session(resolver, SessionId::block_meta(&block_metadata));
+        let mut session = self.new_session(resolver, SessionId::block_meta(&block_metadata), None);
 
         let args = serialize_values(
             &block_metadata.get_prologue_move_args(account_config::reserved_vm_address()),
@@ -1912,8 +1938,11 @@ impl AptosVM {
         });
 
         let mut gas_meter = UnmeteredGasMeter;
-        let mut session =
-            self.new_session(resolver, SessionId::block_meta_ext(&block_metadata_ext));
+        let mut session = self.new_session(
+            resolver,
+            SessionId::block_meta_ext(&block_metadata_ext),
+            None,
+        );
 
         let block_metadata_with_randomness = match block_metadata_ext {
             BlockMetadataExt::V0(_) => unreachable!(),
@@ -2000,7 +2029,7 @@ impl AptosVM {
             Err(e) => return ViewFunctionOutput::new(Err(anyhow::Error::msg(format!("{}", e))), 0),
         };
 
-        let mut session = vm.new_session(&resolver, SessionId::Void);
+        let mut session = vm.new_session(&resolver, SessionId::Void, None);
         let execution_result = Self::execute_view_function_in_vm(
             &mut session,
             &vm,
@@ -2374,7 +2403,11 @@ impl VMValidator for AptosVM {
         let txn_data = TransactionMetadata::new(&txn);
 
         let resolver = self.as_move_resolver(&state_view);
-        let mut session = self.new_session(&resolver, SessionId::prologue_meta(&txn_data));
+        let mut session = self.new_session(
+            &resolver,
+            SessionId::prologue_meta(&txn_data),
+            Some(txn_data.as_user_transaction_context()),
+        );
 
         // Increment the counter for transactions verified.
         let (counter_label, result) = match self.validate_signed_transaction(

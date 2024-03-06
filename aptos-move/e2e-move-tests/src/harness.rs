@@ -759,18 +759,14 @@ impl MoveHarness {
         let acc = self.aptos_framework_account();
         let enabled = enabled.into_iter().map(|f| f as u64).collect::<Vec<_>>();
         let disabled = disabled.into_iter().map(|f| f as u64).collect::<Vec<_>>();
-        self.executor.exec(
-            "features",
-            "change_feature_flags",
-            vec![],
-            vec![
+        self.executor
+            .exec("features", "change_feature_flags", vec![], vec![
                 MoveValue::Signer(*acc.address())
                     .simple_serialize()
                     .unwrap(),
                 bcs::to_bytes(&enabled).unwrap(),
                 bcs::to_bytes(&disabled).unwrap(),
-            ],
-        );
+            ]);
     }
 
     fn override_one_gas_param(&mut self, param: &str, param_value: u64) {
@@ -794,19 +790,15 @@ impl MoveHarness {
             entries,
         };
         let schedule_bytes = bcs::to_bytes(&gas_schedule).expect("bcs");
-        self.executor.exec(
-            "gas_schedule",
-            "set_gas_schedule",
-            vec![],
-            vec![
+        self.executor
+            .exec("gas_schedule", "set_gas_schedule", vec![], vec![
                 MoveValue::Signer(AccountAddress::ONE)
                     .simple_serialize()
                     .unwrap(),
                 MoveValue::vector_u8(schedule_bytes)
                     .simple_serialize()
                     .unwrap(),
-            ],
-        );
+            ]);
     }
 
     pub fn modify_gas_scaling(&mut self, gas_scaling_factor: u64) {

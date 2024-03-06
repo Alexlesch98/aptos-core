@@ -106,6 +106,7 @@ pub enum FeatureFlag {
     MaxObjectNestingCheck,
     KeylessAccountsWithPasskeys,
     TransactionContextExtension,
+    CoinToFungibleAssetMigration,
 }
 
 fn generate_features_blob(writer: &CodeWriter, data: &[u64]) {
@@ -274,6 +275,9 @@ impl From<FeatureFlag> for AptosFeatureFlag {
             FeatureFlag::TransactionContextExtension => {
                 AptosFeatureFlag::TRANSACTION_CONTEXT_EXTENSION
             },
+            FeatureFlag::CoinToFungibleAssetMigration => {
+                AptosFeatureFlag::COIN_TO_FUNGIBLE_ASSET_MIGRATION
+            },
         }
     }
 }
@@ -364,6 +368,9 @@ impl From<AptosFeatureFlag> for FeatureFlag {
             },
             AptosFeatureFlag::TRANSACTION_CONTEXT_EXTENSION => {
                 FeatureFlag::TransactionContextExtension
+            },
+            AptosFeatureFlag::COIN_TO_FUNGIBLE_ASSET_MIGRATION => {
+                FeatureFlag::CoinToFungibleAssetMigration
             },
         }
     }

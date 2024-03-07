@@ -9,6 +9,7 @@ use crate::{
     context::{api_spawn_blocking, Context, FunctionStats},
     failpoint::fail_point_poem,
     generate_error_response, generate_success_response, metrics,
+    metrics::WAIT_TRANSACTION_GAUGE,
     page::Page,
     response::{
         api_disabled, api_forbidden, transaction_not_found_by_hash,
@@ -209,7 +210,13 @@ impl TransactionsApi {
             .await
     }
 
-    // TODO: some way to limit the number of outstanding long polls?
+    /// Wait for transaction by hash
+    ///
+    /// Same as /transactions/by_hash, but will wait for the transaction to be committed. To be used as a long poll
+    /// on clients (the "long" poll will return on the order of several seconds, according to the server configuration).
+    /// The request will return immediately once the committed transaction is found.
+    /// If the committed transaction is not found within the timeout, a 404 will be returned.
+    /// In case of other errors, the request will return immediately with the error.
     #[oai(
         path = "/transactions/wait_by_hash/:txn_hash",
         method = "get",
@@ -226,24 +233,33 @@ impl TransactionsApi {
         fail_point_poem("endpoint_wait_transaction_by_hash")?;
         self.context
             .check_api_output_enabled("Get transactions by hash", &accept_type)?;
+        let wait_by_hash_timeout_ms = self.context.node_config.api.wait_by_hash_timeout_ms;
+        let wait_by_hash_poll_interval_ms =
+            self.context.node_config.api.wait_by_hash_poll_interval_ms;
+
         let start_time = std::time::Instant::now();
+        WAIT_TRANSACTION_GAUGE.inc();
         loop {
-            return match self
+            let result = match self
                 .get_transaction_by_hash_inner(&accept_type, txn_hash.0)
                 .await
             {
                 Ok(txn) => Ok(txn),
                 Err(err) => {
                     if let BasicErrorWith404::NotFound(..) = &err {
-                        // For testing, wait 10 minutes
-                        if start_time.elapsed().as_secs() < 600 {
-                            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+                        if (start_time.elapsed().as_millis() as u64) < wait_by_hash_timeout_ms {
+                            tokio::time::sleep(std::time::Duration::from_millis(
+                                wait_by_hash_poll_interval_ms,
+                            ))
+                            .await;
                             continue;
                         }
                     }
                     Err(err)
                 },
             };
+            WAIT_TRANSACTION_GAUGE.dec();
+            return result;
         }
     }
 

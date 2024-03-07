@@ -209,6 +209,44 @@ impl TransactionsApi {
             .await
     }
 
+    // TODO: some way to limit the number of outstanding long polls?
+    #[oai(
+        path = "/transactions/wait_by_hash/:txn_hash",
+        method = "get",
+        operation_id = "wait_transaction_by_hash",
+        tag = "ApiTags::Transactions"
+    )]
+    async fn wait_transaction_by_hash(
+        &self,
+        accept_type: AcceptType,
+        /// Hash of transaction to retrieve
+        txn_hash: Path<HashValue>,
+        // TODO: Use a new request type that can't return 507.
+    ) -> BasicResultWith404<Transaction> {
+        fail_point_poem("endpoint_wait_transaction_by_hash")?;
+        self.context
+            .check_api_output_enabled("Get transactions by hash", &accept_type)?;
+        let start_time = std::time::Instant::now();
+        loop {
+            return match self
+                .get_transaction_by_hash_inner(&accept_type, txn_hash.0)
+                .await
+            {
+                Ok(txn) => Ok(txn),
+                Err(err) => {
+                    if let BasicErrorWith404::NotFound(..) = &err {
+                        // For testing, wait 10 minutes
+                        if start_time.elapsed().as_secs() < 600 {
+                            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+                            continue;
+                        }
+                    }
+                    Err(err)
+                },
+            };
+        }
+    }
+
     /// Get transaction by version
     ///
     /// Retrieves a transaction by a given version. If the version has been

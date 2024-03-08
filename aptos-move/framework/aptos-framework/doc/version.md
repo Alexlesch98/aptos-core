@@ -191,7 +191,6 @@ Used in on-chain governances to update the major version for the next epoch.
 Example usage:
 - <code>aptos_framework::version::set_for_next_epoch(&framework_signer, new_version);</code>
 - <code>aptos_framework::aptos_governance::reconfigure(&framework_signer);</code>
-```
 
 
 <pre><code><b>public</b> entry <b>fun</b> <a href="version.md#0x1_version_set_for_next_epoch">set_for_next_epoch</a>(<a href="account.md#0x1_account">account</a>: &<a href="../../aptos-stdlib/../move-stdlib/doc/signer.md#0x1_signer">signer</a>, major: u64)

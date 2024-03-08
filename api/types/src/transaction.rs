@@ -740,6 +740,8 @@ impl TryFrom<Script> for ScriptPayload {
 // We use an enum here for extensibility so we can add Script payload support
 // in the future for example.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Union)]
+#[serde(tag = "type", rename_all = "snake_case")]
+#[oai(one_of, discriminator_name = "type", rename_all = "snake_case")]
 pub enum MultisigTransactionPayload {
     EntryFunctionPayload(EntryFunctionPayload),
 }

@@ -54,36 +54,4 @@ module 0x2::M {
           }
         }
     }
-    spec fun $foo(_x: u64) {
-        Tuple()
-    }
-    spec fun $t0(): X::R {
-        loop {
-          Tuple()
-        }
-    }
-    spec fun $t1(): u64;
-    spec fun $t2() {
-        M::$foo(loop {
-          Tuple()
-        })
-    }
-    spec fun $t3(): X::R;
-    spec fun $t4() {
-        {
-          let () = loop {
-            break
-          };
-          {
-            let () = loop {
-              if false {
-                break
-              } else {
-                Tuple()
-              }
-            };
-            Tuple()
-          }
-        }
-    }
 } // end 0x2::M

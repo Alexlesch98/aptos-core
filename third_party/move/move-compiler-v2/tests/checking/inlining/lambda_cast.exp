@@ -69,6 +69,4 @@ module 0x12391283::M {
           }
         }
     }
-    spec fun $test_1(): u64;
-    spec fun $test_2(): u64;
 } // end 0x12391283::M

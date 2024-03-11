@@ -30,7 +30,7 @@ struct CacheMetadata {
 /// InMemoryCache is a simple in-memory cache that stores the protobuf Transaction.
 pub struct InMemoryCache {
     /// Cache maps the cache key to the deserialized Transaction.
-    cache: Arc<DashMap<u64, Arc<Transaction>>>,
+    cache: DashMap<u64, Arc<Transaction>>,
     cache_metadata: Arc<RwLock<CacheMetadata>>,
     _cancellation_token_drop_guard: tokio_util::sync::DropGuard,
 }
@@ -44,9 +44,8 @@ impl InMemoryCache {
         C: redis::aio::ConnectionLike + Send + Sync + Clone + 'static,
     {
         let cache = DashMap::new();
-        let cache_arc = Arc::new(cache);
         let (in_memory_first_version, in_memory_latest_version, total_size_in_bytes) =
-            warm_up_the_cache(conn.clone(), cache_arc.clone(), storage_format).await?;
+            warm_up_the_cache(conn.clone(), cache.clone(), storage_format).await?;
         tracing::info!(
             "In-memory cache is warmed up to version {}",
             in_memory_latest_version
@@ -60,15 +59,14 @@ impl InMemoryCache {
         }));
         spawn_update_task(
             conn,
-            cache_arc.clone(),
+            cache.clone(),
             cache_metadata.clone(),
             storage_format,
             cancellation_token_clone,
-        )
-        .await;
+        );
         tracing::info!("In-memory cache is created");
         Ok(Self {
-            cache: cache_arc,
+            cache,
             cache_metadata,
             _cancellation_token_drop_guard: cancellation_token.drop_guard(),
         })
@@ -136,7 +134,7 @@ impl InMemoryCache {
 /// Warm up the cache with the latest transactions.
 async fn warm_up_the_cache<C>(
     conn: C,
-    cache: Arc<DashMap<u64, Arc<Transaction>>>,
+    cache: DashMap<u64, Arc<Transaction>>,
     storage_format: StorageFormat,
 ) -> anyhow::Result<(u64, u64, u64)>
 where
@@ -161,9 +159,9 @@ where
     Ok((first_version, latest_version, total_size_in_bytes))
 }
 
-async fn spawn_update_task<C>(
+fn spawn_update_task<C>(
     conn: C,
-    cache: Arc<DashMap<u64, Arc<Transaction>>>,
+    cache: DashMap<u64, Arc<Transaction>>,
     cache_metadata: Arc<RwLock<CacheMetadata>>,
     storage_format: StorageFormat,
     cancellation_token: tokio_util::sync::CancellationToken,

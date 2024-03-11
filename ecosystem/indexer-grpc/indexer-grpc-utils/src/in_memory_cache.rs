@@ -58,7 +58,7 @@ impl InMemoryCache {
             total_size_in_bytes,
             latest_version: in_memory_latest_version,
         }));
-        create_update_task(
+        spawn_update_task(
             conn,
             cache_arc.clone(),
             cache_metadata.clone(),
@@ -161,7 +161,7 @@ where
     Ok((first_version, latest_version, total_size_in_bytes))
 }
 
-async fn create_update_task<C>(
+async fn spawn_update_task<C>(
     conn: C,
     cache: Arc<DashMap<u64, Arc<Transaction>>>,
     cache_metadata: Arc<RwLock<CacheMetadata>>,
